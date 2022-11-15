@@ -36,6 +36,8 @@ def train_discrete(model, iterator, opt, args):
         X_batch = X_batch.to(DEVICE)
         y_batch = y_batch.to(DEVICE)
 
+        M = int(model.M)
+
         # 1 is added so that any class that has 0 representation in the initial cycle doesn't throw inf
         weights = (
             1 / (torch.from_numpy(args.class_dist) + 1)
@@ -46,12 +48,13 @@ def train_discrete(model, iterator, opt, args):
 
         opt.zero_grad()
         y_pred = model(X_batch)
-        loss = F.cross_entropy(y_pred, y_batch, weights)
+        y1_batch = y_batch.unsqueeze(1).tile(M)
+        loss = M * F.cross_entropy(y_pred, y1_batch, weights)
         loss.backward()
         opt.step()
 
         loss = loss.detach().cpu().numpy()
-        loss_hist.append(loss)
+        loss_hist.append(loss/M)
 
         PRINT_INTERVAL = int(len(iterator) / 3)
         if (i_batch + 1) % PRINT_INTERVAL == 0:
@@ -87,7 +90,7 @@ def test_discrete(model, iterator, opt, args):
         y = y.to(DEVICE)
 
         logits = model(x)
-        y_pred = F.softmax(logits, 1)
+        y_pred = torch.mean(F.softmax(logits, 1), dim=-1)
 
         acc = accuracy(y_pred, y)
         acc = acc.detach().cpu().numpy()
