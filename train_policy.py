@@ -8,7 +8,7 @@ import argparse
 import time
 import os
 
-from dataset_loader import DrivingDataset, get_sample_weights
+from dataset_loader import DrivingDataset, get_sample_weights, plot_histogram
 from driving_policy import DiscreteDrivingPolicy, EnsemblePolicy
 from utils import DEVICE, str2bool
 
@@ -170,6 +170,8 @@ def main(args):
     print(args)
 
     args.class_dist = get_class_distribution(training_iterator, args)
+    plot_histogram(training_dataset, args)
+    np.savetxt(f"./results/{args.folder_name}/class_distribution_data.txt", args.class_dist)
 
     best_val_accuracy = 0
     for epoch in range(args.n_epochs):
