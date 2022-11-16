@@ -9,7 +9,7 @@ import racer
 import argparse
 import os
 
-from driving_policy import DiscreteDrivingPolicy, EnsemblePolicy
+from driving_policy import DiscreteDrivingPolicy, EnsemblePolicy, DropoutPolicy
 from full_state_car_racing_env import FullStateCarRacingEnv
 from utils import DEVICE
 import matplotlib.pyplot as plt
@@ -30,7 +30,7 @@ def run(steering_network, timesteps):
         if done:
             break
 
-        learner_action[0] = steering_network.eval(state / 255, device=DEVICE)
+        learner_action[0] = steering_network.eval(state / 255, device=DEVICE)[0]
         learner_action[1] = expert_action[1]
         learner_action[2] = expert_action[2]
 
@@ -58,8 +58,8 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--lr", type=float, help="learning rate", default=1e-3)
-    parser.add_argument("--M", type=int, help="number of models in ensemble", default=2)
-    parser.add_argument("--alpha", type=float, help="percentile", default=0.1)
+    parser.add_argument("--M", type=int, help="number of models in ensemble", default=5)
+    parser.add_argument("--alpha", type=float, help="percentile", default=0.4)
     parser.add_argument("--n_epochs", type=int, help="number of epochs", default=25)
     parser.add_argument("--batch_size", type=int, help="batch_size", default=256)
     parser.add_argument(
@@ -77,6 +77,7 @@ if __name__ == "__main__":
         default="",
     )
     parser.add_argument("--dagger_iterations", help="", default=10)
+    parser.add_argument("--drop", type=int, help="", default=0)
     args = parser.parse_args()
 
     #####
@@ -93,7 +94,7 @@ if __name__ == "__main__":
     args.folder_name = f"{args.experiment_name}_M{args.M}_alpha{args.alpha}"
     args.out_dir = f"./results/{args.folder_name}/train"
     args.train_dir = args.out_dir
-    args.weights_out_file = f"./{args.folder_name}/learner_{0}.weights"
+    args.weights_out_file = f"./results/{args.folder_name}/learner_{0}.weights"
 
     if not os.path.exists(f"./{args.out_dir}"):
         os.makedirs(f"./{args.out_dir}")
@@ -103,7 +104,7 @@ if __name__ == "__main__":
     cross_track_error = []
 
     for i in range(args.dagger_iterations):
-        args.weights_out_file = f"./{args.folder_name}/learner_{i + 1}.weights"
+        args.weights_out_file = f"./results/{args.folder_name}/learner_{i + 1}.weights"
         args.run_id = (
             100 + i
         )  # Adding 100 to distinguish between existing dataset and expert dataset
@@ -114,24 +115,32 @@ if __name__ == "__main__":
 
     cross_track_error_list = []
     for i in range(args.dagger_iterations + 1):
-        args.weights_out_file = f"./{args.folder_name}/learner_{i}.weights"
+        args.weights_out_file = f"./results/{args.folder_name}/learner_{i}.weights"
         # driving_policy = DiscreteDrivingPolicy(n_classes=args.n_steering_classes).to(
         #     DEVICE
         # )
-        driving_policy = EnsemblePolicy(n_classes=args.n_steering_classes, M=args.M).to(
+        
+        print(args.drop,"ASFDASF")
+        if(args.drop==1):
+            driving_policy = DropoutPolicy(n_classes=args.n_steering_classes, M=args.M).to(
             DEVICE
         )
+        else:
+            driving_policy = EnsemblePolicy(n_classes=args.n_steering_classes, M=args.M).to(
+            DEVICE
+        )
+
         driving_policy.load_state_dict(torch.load(args.weights_out_file))
         cross_track_error_list.append(run(driving_policy, args.timesteps))
 
-    with open(f"./{args.folder_name}/cross_track_error_list.errors", "wb") as f:
+    with open(f"./results/{args.folder_name}/cross_track_error_list.errors", "wb") as f:
         pickle.dump(cross_track_error_list, f)
 
     cumulative_cross_track_errors = get_cumulative_cross_track_error(
         cross_track_error_list
     )
 
-    with open(f"./{args.folder_name}/cum_cross_track_error.errors", "wb") as f:
+    with open(f"./results/{args.folder_name}/cum_cross_track_error.errors", "wb") as f:
         pickle.dump(cumulative_cross_track_errors, f)
 
     fig, ax = plt.subplots(nrows=1, ncols=1)
@@ -141,5 +150,5 @@ if __name__ == "__main__":
         linestyle="--",
         marker="o",
     )
-    fig.savefig(f"./{args.folder_name}/dataset_iterations.png")
+    fig.savefig(f"./results/{args.folder_name}/dataset_iterations.png")
     plt.close(fig)
