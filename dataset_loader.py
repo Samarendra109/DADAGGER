@@ -55,15 +55,3 @@ def get_sample_weights(dataset: DrivingDataset):
     # Making straight turns half as likely. (Not using more weights because we already have weighted loss)
     weights[(steering_command >= -0.052632) & (steering_command < 0.157894)] = 0.5 #turn_count
     return weights
-
-
-def plot_histogram(dataset: DrivingDataset, args):
-    """Probably Unnecessary"""
-    re_pattern = 'expert_([0-9]+)_([0-9]+)_([-+]?\d*\.\d+|\d+).jpg'
-    steering_command = torch.tensor([float(re.search(re_pattern, basename).group(3)) for basename in dataset.filenames])
-    counts, bins = np.histogram(steering_command.detach().numpy(), bins=args.n_steering_classes)
-
-    fig, ax = plt.subplots(nrows=1, ncols=1)
-    ax.hist(bins[:-1], bins, weights=counts)
-    fig.savefig(f"./results/{args.folder_name}/dataset_iterations.png")
-    plt.close(fig)
