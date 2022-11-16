@@ -98,10 +98,10 @@ class EnsemblePolicy(nn.Module):
         )
 
     def get_ensemble_outputs(self, x):
-        return torch.stack([model.forward(x) for model in self.models])
+        return [model.forward(x) for model in self.models]
 
     def forward(self, x):
-        return torch.mean(self.get_ensemble_outputs(x), axis=0)
+        return torch.stack(self.get_ensemble_outputs(x), dim=-1)
 
     def eval(self, state, device):
         state = state.astype(np.float32)
