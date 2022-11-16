@@ -1,4 +1,3 @@
-from matplotlib import pyplot as plt
 from skimage import io, transform
 import numpy as np
 import torch
