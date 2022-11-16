@@ -47,8 +47,8 @@ def train_discrete(model, iterator, opt, args):
         weights = weights.to(DEVICE)
 
         opt.zero_grad()
-        y_pred = model(X_batch)
-        
+        y_pred = model(X_batch)       
+
         y1_batch = y_batch.unsqueeze(1).tile(M)
         loss = M * F.cross_entropy(y_pred, y1_batch, weights)
         loss.backward()
