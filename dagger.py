@@ -9,7 +9,7 @@ import racer
 import argparse
 import os
 
-from driving_policy import DiscreteDrivingPolicy, EnsemblePolicy
+from driving_policy import DiscreteDrivingPolicy, EnsemblePolicy, DropoutPolicy
 from full_state_car_racing_env import FullStateCarRacingEnv
 from utils import DEVICE
 import matplotlib.pyplot as plt
@@ -77,6 +77,7 @@ if __name__ == "__main__":
         default="",
     )
     parser.add_argument("--dagger_iterations", help="", default=10)
+    parser.add_argument("--drop", type=int, help="", default=0)
     args = parser.parse_args()
 
     #####
@@ -118,9 +119,17 @@ if __name__ == "__main__":
         # driving_policy = DiscreteDrivingPolicy(n_classes=args.n_steering_classes).to(
         #     DEVICE
         # )
-        driving_policy = EnsemblePolicy(n_classes=args.n_steering_classes, M=args.M).to(
+        
+        print(args.drop,"ASFDASF")
+        if(args.drop==1):
+            driving_policy = DropoutPolicy(n_classes=args.n_steering_classes, M=args.M).to(
             DEVICE
         )
+        else:
+            driving_policy = EnsemblePolicy(n_classes=args.n_steering_classes, M=args.M).to(
+            DEVICE
+        )
+
         driving_policy.load_state_dict(torch.load(args.weights_out_file))
         cross_track_error_list.append(run(driving_policy, args.timesteps))
 

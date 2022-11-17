@@ -9,7 +9,7 @@ import time
 import os
 
 from dataset_loader import DrivingDataset, get_sample_weights
-from driving_policy import DiscreteDrivingPolicy, EnsemblePolicy
+from driving_policy import DiscreteDrivingPolicy, EnsemblePolicy, DropoutPolicy
 from utils import DEVICE, str2bool
 
 
@@ -47,7 +47,8 @@ def train_discrete(model, iterator, opt, args):
         weights = weights.to(DEVICE)
 
         opt.zero_grad()
-        y_pred = model(X_batch)
+        y_pred = model(X_batch)       
+
         y1_batch = y_batch.unsqueeze(1).tile(M)
         loss = M * F.cross_entropy(y_pred, y1_batch, weights)
         loss.backward()
@@ -158,9 +159,15 @@ def main(args):
         validation_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2
     )
     # driving_policy = DiscreteDrivingPolicy(n_classes=args.n_steering_classes).to(DEVICE)
-    driving_policy = EnsemblePolicy(n_classes=args.n_steering_classes, M=args.M).to(
+    if(args.drop==1):
+        driving_policy = DropoutPolicy(n_classes=args.n_steering_classes, M=args.M).to(
         DEVICE
-    )
+        )
+    else:
+        driving_policy = EnsemblePolicy(n_classes=args.n_steering_classes, M=args.M).to(
+        DEVICE
+        )
+
 
     opt = torch.optim.Adam(driving_policy.parameters(), lr=args.lr)
     args.start_time = time.time()
