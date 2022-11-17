@@ -118,12 +118,12 @@ class DropoutDrivingPolicy(nn.Module):
             #
             # YOUR CODE GOES HERE
             #
+            nn.Dropout(),
             nn.Linear(in_features=4096, out_features=64),
-            nn.Dropout(),
             nn.ReLU(),
-            
-            nn.Linear(in_features=64, out_features=n_classes),
+
             nn.Dropout(),
+            nn.Linear(in_features=64, out_features=n_classes),
             nn.ReLU(),
         )
 
