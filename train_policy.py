@@ -9,7 +9,7 @@ import time
 import os
 
 from dataset_loader import DrivingDataset, get_sample_weights
-from driving_policy import DiscreteDrivingPolicy, EnsemblePolicy, DropoutPolicy
+from dropout_policy import DropoutPolicy
 from utils import DEVICE, str2bool
 
 
@@ -36,8 +36,6 @@ def train_discrete(model, iterator, opt, args):
         X_batch = X_batch.to(DEVICE)
         y_batch = y_batch.to(DEVICE)
 
-        M = int(model.M)
-
         # 1 is added so that any class that has 0 representation in the initial cycle doesn't throw inf
         weights = (
             1 / (torch.from_numpy(args.class_dist) + 1)
@@ -47,15 +45,13 @@ def train_discrete(model, iterator, opt, args):
         weights = weights.to(DEVICE)
 
         opt.zero_grad()
-        y_pred = model(X_batch)       
-
-        y1_batch = y_batch.unsqueeze(1).tile(M)
-        loss = M * F.cross_entropy(y_pred, y1_batch, weights)
+        y_pred = model(X_batch)
+        loss = F.cross_entropy(y_pred, y_batch, weights)
         loss.backward()
         opt.step()
 
         loss = loss.detach().cpu().numpy()
-        loss_hist.append(loss/M)
+        loss_hist.append(loss)
 
         PRINT_INTERVAL = int(len(iterator) / 3)
         if (i_batch + 1) % PRINT_INTERVAL == 0:
@@ -78,6 +74,13 @@ def accuracy(y_pred, y_true):
     return acc
 
 
+def soft_accuracy(y_pred, y_true):
+    "y_true is (batch_size) and y_pred is (batch_size, K)"
+    correct = (y_pred.gather(1, y_true.view(-1, 1))).mean()
+    acc = correct * 100
+    return acc
+
+
 def test_discrete(model, iterator, opt, args):
     model.train()
 
@@ -91,9 +94,11 @@ def test_discrete(model, iterator, opt, args):
         y = y.to(DEVICE)
 
         logits = model(x)
-        y_pred = torch.mean(F.softmax(logits, 1), dim=-1)
+        y_pred = F.softmax(logits, 1)
 
-        acc = accuracy(y_pred, y)
+        # Using soft accuracy so that, even if the output class doesn't exactly match the expected output
+        #  if it is close, we will still give some accuracy points.
+        acc = soft_accuracy(y_pred, y)
         acc = acc.detach().cpu().numpy()
         acc_hist.append(acc)
 
@@ -158,16 +163,10 @@ def main(args):
     validation_iterator = DataLoader(
         validation_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2
     )
-    # driving_policy = DiscreteDrivingPolicy(n_classes=args.n_steering_classes).to(DEVICE)
-    if(args.drop==1):
-        driving_policy = DropoutPolicy(n_classes=args.n_steering_classes, M=args.M).to(
-        DEVICE
-        )
-    else:
-        driving_policy = EnsemblePolicy(n_classes=args.n_steering_classes, M=args.M).to(
-        DEVICE
-        )
 
+    driving_policy = DropoutPolicy(args.model_class, n_classes=args.n_steering_classes, M=args.M).to(
+        DEVICE
+    )
 
     opt = torch.optim.Adam(driving_policy.parameters(), lr=args.lr)
     args.start_time = time.time()

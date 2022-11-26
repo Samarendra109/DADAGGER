@@ -8,13 +8,12 @@ import argparse
 import torch
 import os
 
-from driving_policy import DiscreteDrivingPolicy
+from driving_policy import DropoutDrivingPolicy
 from utils import DEVICE, str2bool
 
 
-def run(steering_network, args):
+def run(env, steering_network, args):
 
-    env = FullStateCarRacingEnv()
     env.reset()
 
     learner_action = np.array([0.0, 0.0, 0.0])
@@ -36,7 +35,7 @@ def run(steering_network, args):
         if args.expert_drives:
             learner_action[0] = expert_steer
         else:
-            learner_action[0], variance = steering_network.eval(
+            learner_action[0], variance = steering_network.predict(
                 state / 255, device=DEVICE
             )
             variances_states.append((variance, state, t, expert_steer))
@@ -104,7 +103,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    steering_network = DiscreteDrivingPolicy(n_classes=args.n_steering_classes).to(
+    steering_network = DropoutDrivingPolicy(n_classes=args.n_steering_classes).to(
         DEVICE
     )
     if args.learner_weights:

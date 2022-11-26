@@ -9,14 +9,14 @@ import racer
 import argparse
 import os
 
-from driving_policy import DiscreteDrivingPolicy, EnsemblePolicy, DropoutPolicy
+from driving_policy import DropoutDrivingPolicy
+from dropout_policy import DropoutPolicy
 from full_state_car_racing_env import FullStateCarRacingEnv
 from utils import DEVICE
 import matplotlib.pyplot as plt
 
 
-def run(steering_network, timesteps):
-    env = FullStateCarRacingEnv()
+def run(env, steering_network, timesteps):
     env.reset()
     cross_track_error = []
 
@@ -30,7 +30,7 @@ def run(steering_network, timesteps):
         if done:
             break
 
-        learner_action[0] = steering_network.eval(state / 255, device=DEVICE)[0]
+        learner_action[0] = steering_network.predict(state / 255, device=DEVICE)[0]
         learner_action[1] = expert_action[1]
         learner_action[2] = expert_action[2]
 
@@ -54,32 +54,25 @@ def get_cumulative_cross_track_error(cross_track_error_list):
     return cumulative_loss_list
 
 
-if __name__ == "__main__":
+def get_model_class(args):
+    # For now returning default value. But as we add more env,
+    # we will change the return value based on command line arguments.
+    return DropoutDrivingPolicy
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--lr", type=float, help="learning rate", default=1e-3)
-    parser.add_argument("--M", type=int, help="number of models in ensemble", default=5)
-    parser.add_argument("--alpha", type=float, help="percentile", default=0.4)
-    parser.add_argument("--n_epochs", type=int, help="number of epochs", default=25)
-    parser.add_argument("--batch_size", type=int, help="batch_size", default=256)
-    parser.add_argument(
-        "--n_steering_classes", type=int, help="number of steering classes", default=20
-    )
-    parser.add_argument(
-        "--train_dir", help="directory of training data", default="./dataset/train"
-    )
-    parser.add_argument(
-        "--validation_dir", help="directory of validation data", default="./dataset/val"
-    )
-    parser.add_argument(
-        "--experiment_name",
-        help="folder to save the weights of the network, i.e, experiment name, e.g. tuning",
-        default="",
-    )
-    parser.add_argument("--dagger_iterations", help="", default=10)
-    parser.add_argument("--drop", type=int, help="", default=0)
-    args = parser.parse_args()
 
+def get_env_class(args):
+    # For now returning default value. But as we add more env,
+    # we will change the return value based on command line arguments.
+    return FullStateCarRacingEnv
+
+
+def get_env_args(args):
+    # For now returning default value. But as we add more env,
+    # we will change the return value based on command line arguments.
+    return {}
+
+
+def main(env_class, env_args, args):
     #####
     ## Enter your DAgger code here
     ## Reuse functions in racer.py and train_policy.py
@@ -106,32 +99,25 @@ if __name__ == "__main__":
     for i in range(args.dagger_iterations):
         args.weights_out_file = f"./results/{args.folder_name}/learner_{i + 1}.weights"
         args.run_id = (
-            100 + i
+                100 + i
         )  # Adding 100 to distinguish between existing dataset and expert dataset
         # print ('GETTING EXPERT DEMONSTRATIONS')
-        racer.run(learner_policies[i], args)
+        env = env_class(**env_args)
+        racer.run(env, learner_policies[i], args)
         # print ('RETRAINING LEARNER ON AGGREGATED DATASET')
         learner_policies.append(train_policy.main(args))
 
     cross_track_error_list = []
     for i in range(args.dagger_iterations + 1):
         args.weights_out_file = f"./results/{args.folder_name}/learner_{i}.weights"
-        # driving_policy = DiscreteDrivingPolicy(n_classes=args.n_steering_classes).to(
-        #     DEVICE
-        # )
-        
-        print(args.drop,"ASFDASF")
-        if(args.drop==1):
-            driving_policy = DropoutPolicy(n_classes=args.n_steering_classes, M=args.M).to(
-            DEVICE
-        )
-        else:
-            driving_policy = EnsemblePolicy(n_classes=args.n_steering_classes, M=args.M).to(
+
+        driving_policy = DropoutPolicy(args.model_class, n_classes=args.n_steering_classes, M=args.M).to(
             DEVICE
         )
 
         driving_policy.load_state_dict(torch.load(args.weights_out_file))
-        cross_track_error_list.append(run(driving_policy, args.timesteps))
+        env = env_class(**env_args)
+        cross_track_error_list.append(run(env, driving_policy, args.timesteps))
 
     with open(f"./results/{args.folder_name}/cross_track_error_list.errors", "wb") as f:
         pickle.dump(cross_track_error_list, f)
@@ -152,3 +138,36 @@ if __name__ == "__main__":
     )
     fig.savefig(f"./results/{args.folder_name}/dataset_iterations.png")
     plt.close(fig)
+
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--lr", type=float, help="learning rate", default=1e-3)
+    parser.add_argument("--M", type=int, help="number of models in ensemble", default=1)
+    parser.add_argument("--alpha", type=float, help="percentile", default=1)
+    parser.add_argument("--n_epochs", type=int, help="number of epochs", default=25)
+    parser.add_argument("--batch_size", type=int, help="batch_size", default=256)
+    parser.add_argument(
+        "--n_steering_classes", type=int, help="number of steering classes", default=20
+    )
+    parser.add_argument(
+        "--train_dir", help="directory of training data", default="./dataset/train"
+    )
+    parser.add_argument(
+        "--validation_dir", help="directory of validation data", default="./dataset/val"
+    )
+    parser.add_argument(
+        "--experiment_name",
+        help="folder to save the weights of the network, i.e, experiment name, e.g. tuning",
+        default="",
+    )
+    parser.add_argument("--dagger_iterations", help="", default=10)
+    args = parser.parse_args()
+
+    env_class = get_env_class(args)
+    env_args = get_env_args(args)
+
+    args.model_class = get_model_class(args)
+
+    main(env_class, env_args, args)
