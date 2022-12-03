@@ -1,6 +1,5 @@
-# Usage:
-# python hw1.py --cloning --render --envname Humanoid-v2 --num_rollouts 20 --max_timesteps 500 --use_expert_file
-# python hw1.py --dagger --render --envname Humanoid-v2 --num_rollouts 20 --max_timesteps 500
+# Adapted from https://github.com/kinalmehta/Imitation-Learning-Pytorch
+# Usage: python run.py --envname HalfCheetah-v2 --render --dagger --M 20 --alpha 0.4
 
 import os
 
@@ -11,7 +10,6 @@ import logging
 
 tf.get_logger().setLevel(logging.ERROR)
 tf.disable_v2_behavior()
-import tensorflow.keras as keras
 import numpy as np
 import tf_util
 import gym
@@ -22,7 +20,6 @@ import random
 # PyTorch imports
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data
 
@@ -62,9 +59,7 @@ class ImitateTorch:
     def train(self, X, Y, epochs=1):
         criterion = nn.MSELoss()
         optimizer = optim.SGD(self.model.parameters(), lr=0.01)
-        # print(X.dtype,Y.dtype)
         X, Y = torch.from_numpy(np.float32(X)), torch.from_numpy(np.float32(Y))
-        # print(X.dtype,Y.dtype)
         dataset = torch.utils.data.TensorDataset(X, Y)
         data_loader = torch.utils.data.DataLoader(dataset, batch_size=64, shuffle=True)
 
@@ -177,30 +172,22 @@ class DADaggerPolicy:
 
 
 def get_data(env, policy_fn, num_rollouts, render=False):
-    # print('loading and building expert policy')
-    # policy_fn = load_policy.load_policy("./experts/"+args.envname+".pkl")
-    # print('loaded and built')
     config = tf.ConfigProto(
         device_count={'GPU': 0}
     )
     with tf.Session(config=config):
         tf_util.initialize()
 
-        # env = gym.make(args.envname)
-        # max_steps = args.max_timesteps
-
         returns = []
         observations = []
         actions = []
         for i in tqdm(range(num_rollouts)):
-            # print('iter', i,"/",num_rollouts, end="\t")
             obs = env.reset()
             done = False
             totalr = 0.
             steps = 0
             while not done:
                 action = policy_fn(np.float32(obs[None, :]))
-                # print(action.shape)
                 observations.append(obs)
                 actions.append(action)
                 obs, r, done, _ = env.step(action)
@@ -208,22 +195,16 @@ def get_data(env, policy_fn, num_rollouts, render=False):
                 steps += 1
                 if render:
                     env.render()
-                # if steps % 100 == 0: print("%i/%i"%(steps, max_steps))
-                # if steps >= max_steps:
-                #     break
+
             if isinstance(policy_fn, DADaggerPolicy):
                 policy_fn.save_data(observations, actions)
             returns.append(totalr)
 
-        # print('returns', returns)
         print('mean return', np.mean(returns))
         print('std of return', np.std(returns))
 
         if isinstance(policy_fn, DADaggerPolicy):
             policy_fn.save_rewards(np.mean(returns))
-
-        expert_data = {'observations': np.array(observations),
-                       'actions': np.array(actions)}
 
         return np.array(observations), np.array(actions)
 
@@ -294,11 +275,7 @@ def main():
 
     env = gym.make(args.envname)
 
-    # env = gym.wrappers.Monitor(env,"./recording"+args.envname, force=True)
-
     student = ImitateTorch(env)
-
-    max_steps = args.max_timesteps
 
     if args.use_pretrained:
         if args.cloning:
