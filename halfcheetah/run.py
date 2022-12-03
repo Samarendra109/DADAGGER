@@ -110,7 +110,7 @@ class ImitateTorch:
 
 
 class DADaggerPolicy:
-    def __init__(self, env, student: ImitateTorch, expert, M=1, alpha=0.2):
+    def __init__(self, env, student: ImitateTorch, expert, M=20, alpha=0.2):
         # We have to think something about this. I.e. whether normal dagger is filling this up or not.
         self.CAPACITY = 50000
         self.student = student
@@ -171,7 +171,7 @@ class DADaggerPolicy:
             self.size = min(self.size + 1, self.CAPACITY)
 
     def save_rewards(self, mean_rewards):
-        with open(self.results_file, "w") as f:
+        with open(self.results_file, "a") as f:
             f.write(str(mean_rewards)+","+str(self.size)+"\n")
 
 
