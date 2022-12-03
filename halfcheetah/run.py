@@ -35,17 +35,18 @@ class TorchModel(torch.nn.Module):
 
     def __init__(self, input_size, output_size):
         super(TorchModel, self).__init__()
-        self.fc1 = nn.Linear(input_size, 256)
-        self.dropout1 = nn.Dropout()
-        self.fc2 = nn.Linear(256, 128)
-        self.dropout2 = nn.Dropout()
-        self.out = nn.Linear(128, output_size)
+        self.fc = nn.Sequential(
+            nn.Linear(input_size, 256),
+            nn.Tanh(),
+            nn.Dropout(),
+            nn.Linear(256, 128),
+            nn.Tanh(),
+            nn.Dropout(),
+            nn.Linear(128, output_size)
+        )
 
     def forward(self, x):
-        x = torch.tanh(self.fc1(x))
-        x = torch.tanh(self.fc2(x))
-        x = (self.out(x))
-        return (x)
+        return self.fc(x)
 
 
 class ImitateTorch:
