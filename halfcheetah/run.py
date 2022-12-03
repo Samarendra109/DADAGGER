@@ -106,7 +106,7 @@ class ImitateTorch:
 
 
 class DADaggerPolicy:
-    def __init__(self, env, student: ImitateTorch, expert, M=20, alpha=0.2):
+    def __init__(self, env, student: ImitateTorch, expert, M, alpha):
         # We have to think something about this. I.e. whether normal dagger is filling this up or not.
         self.CAPACITY = 50000
         self.student = student
@@ -221,8 +221,8 @@ def behavior_cloning(env, student, expert, num_rollouts, envname):
     student.save("./trained_models/" + envname + "_behaviorCloning.pt")
 
 
-def dagger(env, student, expert, num_rollouts, envname):
-    dagger_policy = DADaggerPolicy(env, student, expert)
+def dagger(env, student, expert, num_rollouts, envname, M, alpha):
+    dagger_policy = DADaggerPolicy(env, student, expert, M, alpha)
 
     for i in tqdm(range(200)):
         if i == 0:
@@ -253,6 +253,8 @@ def parse_arguments():
     parser.add_argument("--max_timesteps", type=int, default=500)
     parser.add_argument('--num_rollouts', type=int, default=50,
                         help='Number of expert roll outs')
+    parser.add_argument("--M", type=int, default=20)
+    parser.add_argument("--alpha", type=float, default=0.4)
     args = parser.parse_args()
 
     return (args)
@@ -287,7 +289,7 @@ def main():
         if args.cloning:
             behavior_cloning(env, student, expert, args.num_rollouts, args.envname)
         elif args.dagger:
-            dagger(env, student, expert, args.num_rollouts, args.envname)
+            dagger(env, student, expert, args.num_rollouts, args.envname, args.M, args.alpha)
 
     if args.render:
         get_data(env, student, 60, args.render)
