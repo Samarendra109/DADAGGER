@@ -121,7 +121,8 @@ class DADaggerPolicy:
         self.save_all = False
 
         # DADAGGER results
-        self.results_file = f"./dadagger_M{M}_alpha{alpha}.txt"
+        os.makedirs("./results", exist_ok=True)
+        self.results_file = f"./results/dadagger_M{M}_alpha{alpha}.txt"
         # This line is written to override the previously saved file if any
         with open(self.results_file, "w") as f:
             f.write("Rewards\n")
@@ -238,7 +239,7 @@ def dagger(env, student, expert, num_rollouts, envname, M, alpha):
             dagger_policy.fraction_assist = 0
         get_data(env, dagger_policy, num_rollouts)
         student.train(dagger_policy.obs_data, dagger_policy.act_data, epochs=epochs)
-    student.save("./trained_models/" + envname + "_dagger.pt")
+    student.save("./trained_models/" + envname + f"_dagger_M{M}_alpha{alpha}.pt")
 
 
 def parse_arguments():
