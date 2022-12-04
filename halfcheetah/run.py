@@ -1,5 +1,6 @@
 # Adapted from https://github.com/kinalmehta/Imitation-Learning-Pytorch
-# Usage: python run.py --envname HalfCheetah-v2 --render --dagger --M 20 --alpha 0.4
+# Usage to train: python run.py --envname HalfCheetah-v2 --render --dagger --M 20 --alpha 0.4
+# Usage to evaluate trained model: python run.py --envname HalfCheetah-v2 --render --dagger --M 20 --alpha 0.4 --use_pretrained
 
 import os
 
@@ -265,8 +266,8 @@ def behavior_cloning_pretrained(student, envname):
     student.load("./trained_models/" + envname + "_behaviorCloning.pt")
 
 
-def dagger_pretrained(student, envname):
-    student.load("./trained_models/" + envname + "_dagger.pt")
+def dagger_pretrained(student, envname, M, alpha):
+    student.load("./trained_models/" + envname + f"_dagger_M{M}_alpha{alpha}.pt")
 
 
 def main():
@@ -284,7 +285,7 @@ def main():
         if args.cloning:
             behavior_cloning_pretrained(student, args.envname)
         elif args.dagger:
-            dagger_pretrained(student, args.envname)
+            dagger_pretrained(student, args.envname, args.M, args.alpha)
 
     else:
         if args.cloning:
