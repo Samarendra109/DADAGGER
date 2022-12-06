@@ -50,10 +50,14 @@ class TorchModel(torch.nn.Module):
 class ImitateTorch:
 
     def __init__(self, env):
-        input_len, output_len = env_dims(env)
-        self.output_len = output_len
-        self.model = TorchModel(input_len, output_len)
+        self.input_len, self.output_len = env_dims(env)
+        self.model = TorchModel(self.input_len, self.output_len)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.model.to(self.device)
+        self.model.eval()
+
+    def reset_parameters(self):
+        self.model = TorchModel(self.input_len, self.output_len)
         self.model.to(self.device)
         self.model.eval()
 
@@ -159,6 +163,11 @@ class DADaggerPolicy:
         variances = np.var(np.stack(student_actions, axis=-1), axis=-1).sum(axis=-1)
 
         index_list = sorted(list(range(num_observations)), key=lambda i: variances[i], reverse=True)
+
+        if all([v == variances[0] for v in variances]):
+            print("All variances equal, randomly selecting samples to save")
+            random.shuffle(index_list)
+
         for t, index in enumerate(index_list):
             # I.e. if save all is true, save all data.
             if (not self.save_all) and (t > self.alpha * num_observations):
@@ -223,22 +232,21 @@ def behavior_cloning(env, student, expert, num_rollouts, envname):
     student.save("./trained_models/" + envname + "_behaviorCloning.pt")
 
 
-def dagger(env, student, expert, num_rollouts, envname, M, alpha):
+def dagger(env, student, expert, num_rollouts, envname, M, alpha, epochs):
     dagger_policy = DADaggerPolicy(env, student, expert, M, alpha)
 
-    for i in tqdm(range(200)):
+    for i in tqdm(range(30)):
         if i == 0:
             # Generates the initial dataset
             num_rollouts = num_rollouts
-            epochs = 81
             dagger_policy.save_all = True
         else:
             # fraction_assist is set to 0 so that only learner action is considered to collect further data
             num_rollouts = 1
-            epochs = 4
-            #dagger_policy.save_all = False
+            dagger_policy.save_all = False
             dagger_policy.fraction_assist = 0
         get_data(env, dagger_policy, num_rollouts)
+        student.reset_parameters()
         student.train(dagger_policy.obs_data, dagger_policy.act_data, epochs=epochs)
     student.save("./trained_models/" + envname + f"_dagger_M{M}_alpha{alpha}.pt")
 
@@ -255,6 +263,7 @@ def parse_arguments():
     parser.add_argument("--max_timesteps", type=int, default=500)
     parser.add_argument('--num_rollouts', type=int, default=50,
                         help='Number of expert roll outs')
+    parser.add_argument('--epochs', type=int, default=25)
     parser.add_argument("--M", type=int, default=20)
     parser.add_argument("--alpha", type=float, default=0.4)
     args = parser.parse_args()
@@ -291,7 +300,7 @@ def main():
         if args.cloning:
             behavior_cloning(env, student, expert, args.num_rollouts, args.envname)
         elif args.dagger:
-            dagger(env, student, expert, args.num_rollouts, args.envname, args.M, args.alpha)
+            dagger(env, student, expert, args.num_rollouts, args.envname, args.M, args.alpha, args.epochs)
 
     if args.render:
         get_data(env, student, 60, args.render)
